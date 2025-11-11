@@ -11,7 +11,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/alejandro-isaza/Upsurge.git", from: "0.11.0"),
-        .package(url: "https://github.com/groue/GRDB.swift.git", from: "6.29.2")
+        .package(name: "GRDB" url: "https://github.com/groue/GRDB.swift.git", from: "6.29.2")
     ],
     targets: [
         .target(
