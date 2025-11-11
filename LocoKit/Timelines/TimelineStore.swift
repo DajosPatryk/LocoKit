@@ -86,11 +86,6 @@ open class TimelineStore {
         config.busyMode = .timeout(30)
         config.defaultTransactionKind = .immediate
         config.maximumReaderCount = 12
-        if sqlDebugLogging {
-            config.trace = {
-                if self.sqlDebugLogging { os_log("SQL: %@", type: .default, $0) }
-            }
-        }
         return config
     }()
 
@@ -389,7 +384,7 @@ open class TimelineStore {
                     for case let item as TimelineObject in savingItems {
                         item.transactionDate = now
                         do { try item.save(in: db) }
-                        catch PersistenceError.recordNotFound { os_log("PersistenceError.recordNotFound", type: .error) }
+                        catch RecordError.recordNotFound { os_log("PersistenceError.recordNotFound", type: .error) }
                         catch let error as DatabaseError where error.resultCode == .SQLITE_CONSTRAINT {
                             // constraint fails (linked list inconsistencies) are non fatal
                             // so let's break the edges and put the item back in the queue
@@ -403,11 +398,11 @@ open class TimelineStore {
                         }
                         savedObjectIds.insert(item.objectId)
                     }
-                    db.afterNextTransactionCommit { db in
+                    db.afterNextTransaction(onCommit: { db in
                         for case let item as TimelineObject in savingItems where !item.hasChanges {
                             item.lastSaved = item.transactionDate
                         }
-                    }
+                    })
                 }
 
             } catch {
@@ -421,7 +416,7 @@ open class TimelineStore {
                     for case let sample as TimelineObject in savingSamples {
                         sample.transactionDate = now
                         do { try sample.save(in: db) }
-                        catch PersistenceError.recordNotFound { os_log("PersistenceError.recordNotFound", type: .error) }
+                        catch RecordError.recordNotFound { os_log("PersistenceError.recordNotFound", type: .error) }
                         catch let error as DatabaseError where error.resultCode == .SQLITE_CONSTRAINT {
                             // break the edge and put it back in the queue
                             (sample as? PersistentSample)?.timelineItem = nil
@@ -433,11 +428,11 @@ open class TimelineStore {
                         }
                         savedObjectIds.insert(sample.objectId)
                     }
-                    db.afterNextTransactionCommit { db in
+                    db.afterNextTransaction(onCommit: { db in
                         for case let sample as TimelineObject in savingSamples where !sample.hasChanges {
                             sample.lastSaved = sample.transactionDate
                         }
-                    }
+                    })
                 }
                 
             } catch {
@@ -457,10 +452,10 @@ open class TimelineStore {
             try pool.write { db in
                 object.transactionDate = Date()
                 do { try object.save(in: db) }
-                catch PersistenceError.recordNotFound { os_log("PersistenceError.recordNotFound", type: .error) }
-                db.afterNextTransactionCommit { db in
+                catch RecordError.recordNotFound { os_log("PersistenceError.recordNotFound", type: .error) }
+                db.afterNextTransaction(onCommit: { db in
                     object.lastSaved = object.transactionDate
-                }
+                })
             }
         } catch {
             os_log("%@", type: .error, error.localizedDescription)
